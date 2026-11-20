@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Club 41 Bordeaux 110</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Club 41">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E30613">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  html, body { margin: 0; height: 100%; background: #E30613; overflow: hidden; }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #EFEFEC; }
+</style>
+</head>
+<body>
+<iframe id="app" title="Club 41 Bordeaux 110" allow="clipboard-write; fullscreen"></iframe>
+<script>
+  // Adresse de l'appli Google Apps Script (Déployer > Gérer les déploiements > URL de l'application Web)
+  var APPLI = 'COLLER_ICI_L_ADRESSE_QUI_FINIT_PAR_/exec';
+  // On transmet les liens partagés (?e= événement, ?s= sondage, ?v=annee) à l'appli
+  if (/^https:\/\/script\.google\.com\//.test(APPLI)) {
+    document.getElementById('app').src = APPLI + (location.search || '');
+  } else {
+    document.body.innerHTML = '<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font:600 18px Arial,sans-serif;text-align:center;padding:24px"><img src="apple-touch-icon.png" alt="" style="width:120px;height:120px;border-radius:50%;margin-bottom:18px;box-shadow:0 0 0 5px #fff">Club 41 Bordeaux 110<br><span style="font-weight:400;font-size:15px;opacity:.9;margin-top:8px">L\'appli du club arrive très bientôt.</span></div>';
+  }
+</script>
+</body>
+</html>
