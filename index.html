@@ -22,9 +22,27 @@
 <script>
   // Adresse de l'appli Google Apps Script (Déployer > Gérer les déploiements > URL de l'application Web)
   var APPLI = 'https://script.google.com/macros/s/AKfycbybtROwBr4fnysXbCphKBqLHVimPKTBrVXbSB783A0ZPamhRn1vzpcg8qLzz6AoMjK_/exec';
-  // On transmet les liens partagés (?e= événement, ?s= sondage, ?v=annee) à l'appli
+
+  // La connexion est gardée ici (l'iPhone efface la mémoire de la page Google intégrée quand on ferme l'appli)
+  function lireJeton() { try { return localStorage.getItem('c41_token') || ''; } catch (e) { return ''; } }
+  window.addEventListener('message', function (e) {
+    var hote = '';
+    try { hote = new URL(e.origin).hostname; } catch (x) { return; }
+    if (!/(^|\.)googleusercontent\.com$/.test(hote)) return;
+    var d = e.data || {};
+    if (d.c41 !== 'token') return;
+    try {
+      if (d.token && /^[\w-]{10,}$/.test(d.token)) localStorage.setItem('c41_token', d.token);
+      else localStorage.removeItem('c41_token');
+    } catch (x) {}
+  });
+
   if (/^https:\/\/script\.google\.com\//.test(APPLI)) {
-    document.getElementById('app').src = APPLI + (location.search || '');
+    // On transmet les liens partagés (?e= événement, ?s= sondage, ?v=annee) et la connexion gardée
+    var q = location.search || '';
+    var jeton = lireJeton();
+    if (jeton) q += (q ? '&' : '?') + 't=' + encodeURIComponent(jeton);
+    document.getElementById('app').src = APPLI + q;
   } else {
     document.body.innerHTML = '<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font:600 18px Arial,sans-serif;text-align:center;padding:24px"><img src="apple-touch-icon.png" alt="" style="width:120px;height:120px;border-radius:50%;margin-bottom:18px;box-shadow:0 0 0 5px #fff">Club 41 Bordeaux 110<br><span style="font-weight:400;font-size:15px;opacity:.9;margin-top:8px">L\'appli du club arrive très bientôt.</span></div>';
   }
