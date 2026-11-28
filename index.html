@@ -65,7 +65,11 @@
   }
   function pastille(n) {
     try { if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (x) {}
+    // On la confie aussi au service de notifications, qui la remet si une notification est balayée
+    try { caches.open('c41').then(function (c) { return c.put('/c41-pastille', new Response(String(n))); }); } catch (x) {}
   }
+  // À chaque retour dans l'appli, on remet la pastille à jour
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && appli) { try { appli.postMessage({ c41: 'push-etat', etat: etatPush(), pret: osPret, retour: 1 }, '*'); } catch (x) {} } });
   document.getElementById('pushNon').onclick = function () { document.getElementById('push').hidden = true; };
   document.getElementById('pushOui').onclick = function () {
     document.getElementById('push').hidden = true;
