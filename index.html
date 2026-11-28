@@ -103,6 +103,18 @@
     if (d.c41 === 'push-ask') { appli = e.source; if (osPret) document.getElementById('push').hidden = false; else envoyerEtat(); return; }
     if (d.c41 === 'push-stop') { if (osPret && window.OneSignal) OneSignal.User.PushSubscription.optOut().then(envoyerEtat, envoyerEtat); return; }
     if (d.c41 === 'badge') { pastille(Number(d.n) || 0); return; }
+    if (d.c41 === 'share-vcf') {
+      // Partage du fichier des contacts : ouvre le menu Partager du téléphone (puis « Contacts » › « Ajouter les … contacts »)
+      var src = e.source, rep = function (r) { try { src.postMessage({ c41: 'share-vcf-rep', r: r }, '*'); } catch (x) {} };
+      try {
+        var nomF = String(d.nom || 'contacts.vcf').replace(/[^\w.\-]/g, '_');
+        var f = new File([String(d.texte || '')], nomF, { type: 'text/vcard' });
+        if (navigator.canShare && navigator.canShare({ files: [f] })) {
+          navigator.share({ files: [f] }).then(function () { rep('ok'); }, function (x) { rep(x && x.name === 'AbortError' ? 'annule' : 'ko'); });
+        } else rep('ko');
+      } catch (x) { rep('ko'); }
+      return;
+    }
   });
 
   if (/^https:\/\/script\.google\.com\//.test(APPLI)) {
