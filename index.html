@@ -12,12 +12,22 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <style>
   html, body { margin: 0; height: 100%; background: #E30613; overflow: hidden; }
   iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #EFEFEC; }
+  #push { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 20px; font-family: Arial, Helvetica, sans-serif; }
+  #push[hidden] { display: none; }
+  #push .c { background: #fff; border-radius: 22px; padding: 22px 20px; max-width: 340px; width: 100%; text-align: center; box-shadow: 0 20px 50px -20px rgba(0,0,0,.6); }
+  #push .t { font-size: 19px; font-weight: 800; color: #1f1f1e; margin: 8px 0 6px; }
+  #push .s { font-size: 15px; color: #555; line-height: 1.45; }
+  #push button { font: 700 16px Arial, Helvetica, sans-serif; border: 0; border-radius: 14px; padding: 13px 16px; width: 100%; margin-top: 10px; cursor: pointer; }
+  #push .oui { background: #E30613; color: #fff; margin-top: 18px; }
+  #push .non { background: #efefec; color: #1f1f1e; }
 </style>
 </head>
 <body>
+<div id="push" hidden><div class="c"><div style="font-size:44px">🔔</div><div class="t">Les nouveautés du club sur ce téléphone</div><div class="s">Touchez « Activer », puis « Autoriser » : vous serez prévenu de chaque nouvelle soirée, rappel ou Tribunal des Papilles, avec une pastille sur l'icône.</div><button class="oui" id="pushOui">Activer</button><button class="non" id="pushNon">Pas maintenant</button></div></div>
 <iframe id="app" title="Club 41 Bordeaux 110" allow="clipboard-write; fullscreen" credentialless></iframe>
 <script>
   // Adresse de l'appli Google Apps Script (Déployer > Gérer les déploiements > URL de l'application Web)
@@ -25,16 +35,70 @@
 
   // La connexion est gardée ici (l'iPhone efface la mémoire de la page Google intégrée quand on ferme l'appli)
   function lireJeton() { try { return localStorage.getItem('c41_token') || ''; } catch (e) { return ''; } }
+  // ---- Notifications sur le téléphone (OneSignal) et pastille sur l'icône ----
+  var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var installe = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  var supporte = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  var appli = null, membreId = '', osLance = false, osPret = false;
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  function etatPush() {
+    if (iOS && !installe) return 'pasinstalle';
+    if (!supporte) return 'nonsupporte';
+    var p = Notification.permission;
+    if (p === 'granted') return (osPret && window.OneSignal && OneSignal.User.PushSubscription.optedIn === false) ? 'off' : 'on';
+    return p === 'denied' ? 'denied' : 'default';
+  }
+  function envoyerEtat() { if (appli) { try { appli.postMessage({ c41: 'push-etat', etat: etatPush(), pret: osPret }, '*'); } catch (x) {} } }
+  function lancerOneSignal(app) {
+    if (osLance || !app || !supporte || (iOS && !installe)) return;
+    osLance = true;
+    OneSignalDeferred.push(async function (OneSignal) {
+      try {
+        await OneSignal.init({ appId: app, notifyButton: { enable: false }, autoResubscribe: true });
+        osPret = true;
+        if (membreId) await OneSignal.login(membreId);
+        OneSignal.Notifications.addEventListener('permissionChange', envoyerEtat);
+        OneSignal.User.PushSubscription.addEventListener('change', envoyerEtat);
+      } catch (x) {}
+      envoyerEtat();
+    });
+  }
+  function pastille(n) {
+    try { if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (x) {}
+  }
+  document.getElementById('pushNon').onclick = function () { document.getElementById('push').hidden = true; };
+  document.getElementById('pushOui').onclick = function () {
+    document.getElementById('push').hidden = true;
+    if (!osPret || !window.OneSignal) return;
+    var abo = OneSignal.User.PushSubscription;
+    if (Notification.permission === 'granted') { abo.optIn().then(envoyerEtat, envoyerEtat); return; }
+    OneSignal.Notifications.requestPermission().then(function () { if (Notification.permission === 'granted' && abo.optedIn === false) return abo.optIn(); }).then(envoyerEtat, envoyerEtat);
+  };
+
   window.addEventListener('message', function (e) {
     var hote = '';
     try { hote = new URL(e.origin).hostname; } catch (x) { return; }
     if (!/(^|\.)googleusercontent\.com$/.test(hote)) return;
     var d = e.data || {};
-    if (d.c41 !== 'token') return;
-    try {
-      if (d.token && /^[\w-]{10,}$/.test(d.token)) localStorage.setItem('c41_token', d.token);
-      else localStorage.removeItem('c41_token');
-    } catch (x) {}
+    if (d.c41 === 'token') {
+      try {
+        if (d.token && /^[\w-]{10,}$/.test(d.token)) localStorage.setItem('c41_token', d.token);
+        else localStorage.removeItem('c41_token');
+      } catch (x) {}
+      if (!d.token && osPret && window.OneSignal) { try { OneSignal.logout(); } catch (x) {} pastille(0); }
+      return;
+    }
+    if (d.c41 === 'push-id') {
+      appli = e.source;
+      membreId = /^[\w-]{4,40}$/.test(d.id || '') ? d.id : '';
+      if (osPret && membreId && window.OneSignal) OneSignal.login(membreId).then(envoyerEtat, envoyerEtat);
+      else lancerOneSignal(d.app);
+      envoyerEtat();
+      return;
+    }
+    if (d.c41 === 'push-ask') { appli = e.source; if (osPret) document.getElementById('push').hidden = false; else envoyerEtat(); return; }
+    if (d.c41 === 'push-stop') { if (osPret && window.OneSignal) OneSignal.User.PushSubscription.optOut().then(envoyerEtat, envoyerEtat); return; }
+    if (d.c41 === 'badge') { pastille(Number(d.n) || 0); return; }
   });
 
   if (/^https:\/\/script\.google\.com\//.test(APPLI)) {
